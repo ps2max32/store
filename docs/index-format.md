@@ -89,8 +89,8 @@ shows them. Its keys:
 
 | Key | | |
 |---|---|---|
-The shell's keys (`apps/mxshell` `src/games.c`; together at most 640 bytes, the rest of the
-shell's 768 is for `elf=`, `args=`, `saves=`):
+The shell's keys (`apps/mxshell` `src/games.c`; together at most 640 bytes, so that they and
+`elf=`, `args=`, `saves=` fit the 768 bytes an older shell reads):
 
 | Key | | |
 |---|---|---|
@@ -120,9 +120,10 @@ The store's keys:
 
 What the store shows and what the shell shows after an install are one file: the catalogue's
 `catalog/<id>/game.ini`, which is the index's section. An install writes the program's
-`game.ini` as that section (without `url`, `size`, `sha256` and the pictures' lines, with
-`version`, and `cover_hd=coverhd.t8`) followed by the keys of the package's own `game.ini` that
-belong to the program: `elf`, `args`, `saves`; and the cover (`coverhd.t8`) over the package's.
+`game.ini` as that section: first its shell keys and `cover_hd=coverhd.t8`, then the keys of
+the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`), then the
+store's keys (with `version`; without `url`, `size`, `sha256` and the pictures' lines); and the
+cover (`coverhd.t8`) over the package's. The shell reads the first 2 KiB of a `game.ini`.
 A program changes its look in the catalogue, not in its package; the shell may show any of the
 store's keys too (`developer`, `players`, `version`). `apps/mxshell/package-games.sh` (games put
 on a stick by hand) takes the same file from the catalogue.
