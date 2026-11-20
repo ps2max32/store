@@ -1,7 +1,9 @@
 # mxstore: the store of mx OS, its programs from GitHub's releases. So far its
-# first step, tlstest: DNS, a TLS handshake and an HTTPS GET, timed.
+# first steps, MXOS programs (libmxk) in build/apps/mxstore:
 #
-#   make           build/apps/mxstore/tlstest.elf: an MXOS program (libmxk)
+#   tlstest.elf    DNS, a TLS handshake and an HTTPS GET, timed
+#   wget.elf       a download by src/https.c (redirects, chunked), timed, with
+#                  its SHA-256
 #
 # mbedTLS (libs/mbedtls, upstream at v3.6.8) with src/mbedtls_user.h.
 
@@ -12,7 +14,7 @@ MBEDTLS  ?= $(PS2MAX)/libs/mbedtls
 MX_TARGET ?= mxos
 OUT      ?= $(PS2MAX)/build/apps/mxstore
 
-all: $(OUT)/tlstest.elf
+all: $(OUT)/tlstest.elf $(OUT)/wget.elf
 
 MAXSDK_OUT ?= $(OUT)/maxsdk
 export EXTRA_CFLAGS = -ffunction-sections -fdata-sections
@@ -28,8 +30,8 @@ SCFLAGS = $(filter-out -ffreestanding,$(CFLAGS)) -MMD -nostdlibinc -isystem $(PI
 
 MBEDTLS_SRCS = $(notdir $(wildcard $(MBEDTLS)/library/*.c))
 MBEDTLS_OBJS = $(MBEDTLS_SRCS:%.c=$(OUT)/obj/mbedtls/%.o)
-SRCS = tlstest port
-OBJS = $(SRCS:%=$(OUT)/obj/%.o) $(OUT)/obj/roots.o
+COMMON = $(OUT)/obj/port.o $(OUT)/obj/roots.o
+OBJS = $(OUT)/obj/tlstest.o $(OUT)/obj/wget.o $(OUT)/obj/https.o $(COMMON)
 
 $(OUT)/obj/mbedtls/%.o: $(MBEDTLS)/library/%.c $(HERE)/src/mbedtls_user.h
 	@mkdir -p $(dir $@)
@@ -47,8 +49,11 @@ $(OUT)/obj/roots.o: $(HERE)/src/roots.S $(OUT)/roots.pem
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -Wa,-I$(OUT) -c $< -o $@
 
-$(OUT)/tlstest.elf: $(OBJS) $(MBEDTLS_OBJS) $(MX_LIB) $(MX_CRT0) $(MX_LD) $(LIBC_LIBS)
-	$(call link,$@,$(MX_CRT0) $(OBJS) $(MBEDTLS_OBJS) $(LIBC_LIBS))
+$(OUT)/tlstest.elf: $(OUT)/obj/tlstest.o $(COMMON) $(MBEDTLS_OBJS) $(MX_LIB) $(MX_CRT0) $(MX_LD) $(LIBC_LIBS)
+	$(call link,$@,$(MX_CRT0) $(OUT)/obj/tlstest.o $(COMMON) $(MBEDTLS_OBJS) $(LIBC_LIBS))
+
+$(OUT)/wget.elf: $(OUT)/obj/wget.o $(OUT)/obj/https.o $(COMMON) $(MBEDTLS_OBJS) $(MX_LIB) $(MX_CRT0) $(MX_LD) $(LIBC_LIBS)
+	$(call link,$@,$(MX_CRT0) $(OUT)/obj/wget.o $(OUT)/obj/https.o $(COMMON) $(MBEDTLS_OBJS) $(LIBC_LIBS))
 
 -include $(OBJS:.o=.d) $(MBEDTLS_OBJS:.o=.d)
 
