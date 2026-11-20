@@ -1,7 +1,9 @@
 # The store's index
 
-The store of mx OS (an app of MXSHELL2, like Media) shows the programs made with ps2max,
-installs them and keeps them up to date. Everything it needs is on GitHub:
+The store of mx OS, MXSTORE (an app of MXSHELL2, like Media: a tile in its Apps section), shows
+the programs made with ps2max, installs them and keeps them up to date: the games and
+emulators, and mx OS itself (MXBOOT, MXKERNEL with its IOP modules, MXSHELL, and MXSTORE).
+Everything it needs is on GitHub:
 
 - **the catalogue**: one site on GitHub Pages, made by this repository's CI: the index,
   the pictures, and the same catalogue as a web page for people;
@@ -18,15 +20,19 @@ https://ps2max32.github.io/store/
   index.ini            the catalogue (below), at most 256 KiB
   index.sig            its signature: ECDSA P-256 over SHA-256 of index.ini, 64 bytes (r, s)
   index.html           the same catalogue for a browser, with links to every project
-  img/<id>/cover.jpg   256 x 361: the tile on the shelf (a DVD case, 1 : 1.41)
+  img/<id>/cover.t8    256 x 361: the tile on the shelf (a DVD case, 1 : 1.41), in the
+                       shell's own format (below); cover.jpg the same for the web page
   img/<id>/hero.jpg    640 x 360: the wide picture behind the program's page
   img/<id>/shot<n>.jpg 640 x 360: screenshots, 1 to 6
   img/<id>/trailer.mpg optional: MPEG-1 video, 640 x 360 at most, without sound or with MP2,
                        at most 8 MiB, at most 30 s
 ```
 
-The pictures are baseline JPEG (not progressive), Y Cb Cr 4:2:0, quality 85: `mx_pic_decode`
-takes about 0.08 s for one, and a page needs at most eight. The CI makes them from the
+The cover is the shell's `coverhd.t8` (a CLUT of 256 RGBA entries in the GS's CSM1 order,
+then 256 x 361 indices; `apps/mxshell/tools/mk-cover.py`): the store shows that file, and an
+install writes it as the program's cover, so the store and the shelf show the same picture,
+byte for byte. The other pictures are baseline JPEG (not progressive), Y Cb Cr 4:2:0, quality
+85: `mx_pic_decode` takes about 0.08 s for one, and a page needs at most eight. The CI makes them from the
 sources in any size and format (below). What the store has loaded it keeps on the device
 (`<device>/PS2MAX/.store/img/`) by its SHA-256, so a picture that did not change is not
 loaded again.
@@ -64,7 +70,7 @@ installed=4718592
 kernel=46
 needs=id1/pak0.pak
 needs_text=The PAK files of Quake (shareware or full) in id1/.
-cover=img/quake1/cover.jpg 1b0e...44
+cover=img/quake1/cover.t8 1b0e...44
 hero=img/quake1/hero.jpg 77aa...0c
 shots=img/quake1/shot1.jpg 51c3...9e,img/quake1/shot2.jpg 02fd...71
 trailer=img/quake1/trailer.mpg c0de...5a
@@ -82,7 +88,7 @@ shows them. Its keys:
 | Key | | |
 |---|---|---|
 | `title` | required | at most 40 characters |
-| `kind` | required | `game`, `emulator`, `app`, `system` (the kernel, the shell: later) |
+| `kind` | required | `game`, `emulator`, `app`, `system` (mx OS itself: below) |
 | `section` | | the shell's section it goes to: `games` (default), `emulation`, `media`, `apps` |
 | `summary` | required | one line under the tile, at most 80 characters |
 | `description` | | the program's page, at most 600 characters |
@@ -96,6 +102,16 @@ shows them. Its keys:
 | `needs`, `needs_text` | | files the user brings: game data the store cannot give (`,` between them, relative to `PS2MAX/<id>/`). Missing ones are shown with `needs_text`; installing is allowed, starting waits until they are there |
 | `cover`, `hero`, `shots`, `trailer` | | pictures: a path below `base`, a space, its SHA-256; `shots` several, `,` between them |
 | `source`, `license` | | the project and its licence, shown on its page |
+
+## One description, in the store and on the shelf
+
+What the store shows and what the shell shows after an install come from one place, this
+repository's `catalog/`: an install writes the program's `game.ini` display keys from the index
+(`title`, `year`, `type` = `genre`, `description` = `summary`, `section`, `cover_hd=coverhd.t8`)
+and the cover (`coverhd.t8`) over what the package has. The package's `game.ini` keeps the
+keys that belong to the program: `elf`, `args`, `saves`. A program changes its look in the
+catalogue, not in its package; `apps/mxshell/package-games.sh` (games put on a stick by hand)
+takes the same from the catalogue.
 
 ## The package
 
@@ -117,6 +133,37 @@ and moves the files into place only when all are there; what it wrote is listed 
 Files that are not in the package (the game data, saves, configs the program wrote) are
 never touched; a file of an older version that the new one no longer has is removed.
 
+## mx OS itself (`kind=system`)
+
+Four entries: `mxboot` (MXBOOT), `mxos` (MXKERNEL, its IOP modules and the host link's
+service), `mxshell` (MXSHELL), `mxstore` (MXSTORE). Their packages are zips of files at their
+places on the memory card in slot 1 (`MXOS/MXKERNEL.ELF`, `MXOS/mxsock.irx`, `MXBOOT/MXBOOT.ELF`,
+`PS2MAX/mxstore/MXSTORE.ELF`); the store writes only there, only `mc0:`. More keys:
+
+| Key | | |
+|---|---|---|
+| `update` | required | how it is put in place, below: `file`, `kernel` or `boot` |
+| `kernel` | | the kernel version it needs; `mxos` gives the version it brings as `provides=` |
+| `provides` | `mxos` | the kernel version of this package |
+
+They are shown in the store's own System row and in Updates, not on the shelf. An update of
+several goes in this order: `mxos`, `mxshell`, `mxstore`, `mxboot`; an entry whose `kernel=` the
+running kernel does not meet waits for `mxos`.
+
+- **`file`** (MXSHELL, MXSTORE): each file is written as `<name>.NEW` and read back, then the
+  old one is moved to `MXOS/BACKUP/` and the new one renamed into place. MXSTORE updating
+  itself does this too: the new one runs from its next start.
+- **`kernel`** (MXKERNEL and its modules, which belong together): the files go to `MXOS/NEW/`;
+  mxboot's one-shot (`BOOTONCE.CFG`) starts `MXOS/NEW/MXKERNEL.ELF` at the next boot, which the
+  store asks for ("restart to finish": the user resets). If that kernel comes up, the store
+  (at its next start) moves the old set to `MXOS/BACKUP/` and `NEW/` into place; if it does
+  not, the next reset boots the old kernel again and the store says the update failed. This
+  needs the kernel to say where it was started from (`mx_kernel_path`, an mx OS change still
+  to be made).
+- **`boot`** (MXBOOT): only phase 2, `MXBOOT/MXBOOT.ELF`, as `file`, its old copy in
+  `MXBOOT/BACKUP/`. Phase 1 (the system update KELF, bound to the card) stays the installer's
+  (`mxboot-install`): a card whose phase 1 is wrong boots nothing, so no store writes it.
+
 ## Trust
 
 TLS (`certs/`: the roots of github.com and github.io) says the files came from GitHub. The
@@ -128,16 +175,20 @@ too (the index is made again, by the CI, when a program has a new release).
 ## This repository
 
 ```
-catalog/<id>.ini      what is written by hand: title, kind, summary, description, genre, year,
-                      developer, players, needs, needs_text, license, and
-                      repo=ps2max32/quake1, asset=*-ps2max.zip (which release asset)
+catalog/<id>.ini      what is written by hand: title, kind, section, summary, description,
+                      genre, year, developer, players, needs, needs_text, license, update
+                      (system), order (the shelf's order), and repo=ps2max32/quake1,
+                      asset=*.zip (which release asset; a repo without a release is left out)
 catalog/<id>/         the pictures as made: cover.*, hero.*, shot*.*, trailer.* (any size, PNG,
                       JPEG or a video); the CI cuts and converts them
 tools/mkindex.py      the newest release of each repo (GitHub's API), its asset's size and
                       SHA-256, the pictures, index.ini, index.sig, index.html into site/
-.github/workflows/    mkindex.py on a push, every day and on a dispatch; site/ to GitHub Pages
+tools/mkart.py        a cover and a wide picture for a program without its own (Penumbra,
+                      the shell's ground colours, fonts/)
+.github/workflows/    mkindex.py on a push, every day and by hand; site/ to GitHub Pages
 ```
 
 A program joins the store with a `catalog/<id>.ini`, its pictures, and a release whose
-asset is the package above. The private key is a secret of this repository
-(`STORE_KEY`, PEM); its public half is in the store app.
+asset is the package above. `mxos`'s release tags are its kernel version (`v46`): that is the
+`provides=` of its entry. The private key is a secret of this repository (`STORE_KEY`, PEM);
+its public half is in the store app.

@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 
 from PIL import Image
@@ -35,7 +36,8 @@ KINDS = ("game", "emulator", "app", "system")
 SECTIONS = ("games", "emulation", "media", "apps")
 # copied from catalog/<id>.ini into the index as they are
 KEYS = ("title", "kind", "section", "summary", "description", "genre", "year", "developer",
-        "players", "kernel", "needs", "needs_text", "license")
+        "players", "kernel", "needs", "needs_text", "license", "update")
+UPDATES = ("file", "kernel", "boot")
 
 
 def fail(msg):
@@ -67,13 +69,35 @@ def get(url, accept=None):
 
 
 def release(repo, pattern):
-    rel = json.loads(get(f"https://api.github.com/repos/{repo}/releases/latest",
-                         "application/vnd.github+json"))
+    """its newest release's asset, or None (no release yet: not in the index)"""
+    try:
+        rel = json.loads(get(f"https://api.github.com/repos/{repo}/releases/latest",
+                             "application/vnd.github+json"))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None
+        raise
     for a in rel.get("assets", []):
         if fnmatch.fnmatch(a["name"], pattern):
             return {"version": rel["tag_name"].lstrip("v"), "date": rel["published_at"][:10],
                     "url": a["browser_download_url"]}
-    fail(f"{repo} {rel['tag_name']}: no asset {pattern}")
+    print(f"mkindex: {repo} {rel['tag_name']}: no asset {pattern}: left out", file=sys.stderr)
+    return None
+
+
+def t8(src, dst):
+    """the shell's cover format (apps/mxshell/tools/mk-cover.py): a CLUT of 256 RGBA
+    entries in CSM1 order, alpha 0x80, then the indices"""
+    im = cut(Image.open(src), COVER).quantize(256, dither=Image.Dither.FLOYDSTEINBERG)
+    pal = im.getpalette() + [0] * 768
+    clut = bytearray(1024)
+    for i in range(256):
+        at = (i & ~0x18) | (i & 8) << 1 | (i & 0x10) >> 1
+        clut[at * 4:at * 4 + 4] = bytes(pal[i * 3:i * 3 + 3]) + b"\x80"
+    data = bytes(clut) + im.tobytes()
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    open(dst, "wb").write(data)
+    return hashlib.sha256(data).hexdigest()
 
 
 def latin1(s, what):
@@ -165,7 +189,7 @@ def page(entries, base):
                         for s in e.get("shots", "").split(",") if s)
         facts = " · ".join(html.escape(e[k]) for k in ("genre", "year", "developer") if e.get(k))
         desc = html.escape(e.get("description", "")).replace("\\n", "<br>")
-        cover = (f'<img class="cover" src="{html.escape(e["cover"].split()[0])}" alt="">'
+        cover = (f'<img class="cover" src="{html.escape(e["cover"].split()[0].replace(".t8", ".jpg"))}" alt="">'
                  if e.get("cover") else '<div class="cover"></div>')
         source = (f' · <a href="{html.escape(e["source"])}">source</a>' if e.get("source") else "")
         rows.append(f"""<article>{cover}<div><h2>{html.escape(e['title'])}</h2>
@@ -222,6 +246,8 @@ def main():
                 fail(f"{ident}: no {k}=")
         if e["kind"] not in KINDS or e.get("section", "games") not in SECTIONS:
             fail(f"{ident}: kind= or section= unknown")
+        if (e["kind"] == "system") != (e.get("update") in UPDATES):
+            fail(f"{ident}: update= (file, kernel, boot) is for kind=system, and needed there")
         if len(e["title"]) > 40 or len(e["summary"]) > 80 or len(e.get("description", "")) > 600:
             fail(f"{ident}: title (40), summary (80) or description (600) too long")
         if c.get("url"):
@@ -229,9 +255,14 @@ def main():
                    "date": c.get("date", datetime.date.today().isoformat())}
         elif c.get("repo") and c.get("asset"):
             rel = release(c["repo"], c["asset"])
+            if not rel:
+                print(f"mkindex: {ident}: no release of {c['repo']} yet: left out", file=sys.stderr)
+                continue
         else:
             fail(f"{ident}: repo= and asset=, or url=")
         e.update(rel)
+        if e.get("update") == "kernel":
+            e["provides"] = rel["version"]  # mxos's tags are its kernel version: v46
         e["size"], e["sha256"] = (str(v) for v in package(rel["url"]))
         if c.get("installed"):
             e["installed"] = c["installed"]
@@ -240,7 +271,8 @@ def main():
 
         img = f"img/{ident}/"
         if (p := picture(a.catalog, ident, "cover")):
-            e["cover"] = f"{img}cover.jpg " + jpeg(p, COVER, os.path.join(a.out, img, "cover.jpg"))
+            e["cover"] = f"{img}cover.t8 " + t8(p, os.path.join(a.out, img, "cover.t8"))
+            jpeg(p, COVER, os.path.join(a.out, img, "cover.jpg"))  # the web page's
         if (p := picture(a.catalog, ident, "hero")):
             e["hero"] = f"{img}hero.jpg " + jpeg(p, WIDE, os.path.join(a.out, img, "hero.jpg"))
         shots = []
@@ -257,7 +289,8 @@ def main():
 
         lines.append(f"[{ident}]")
         order = ("title", "kind", "section", "summary", "description", "genre", "year", "developer",
-                 "players", "version", "date", "url", "size", "sha256", "installed", "kernel", "needs",
+                 "players", "update", "version", "provides", "date", "url", "size", "sha256", "installed",
+                 "kernel", "needs",
                  "needs_text", "cover", "hero", "shots", "trailer", "source", "license")
         for k in order:
             if e.get(k):

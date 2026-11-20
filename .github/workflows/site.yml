@@ -1,0 +1,42 @@
+# The store's site (docs/index-format.md): tools/mkindex.py from catalog/,
+# signed with the STORE_KEY secret, to GitHub Pages. On a push, every day
+# (new releases of the programs) and by hand.
+name: site
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet pillow
+      - name: mkindex
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STORE_KEY: ${{ secrets.STORE_KEY }}
+        run: |
+          test -n "$STORE_KEY" || { echo "no STORE_KEY secret"; exit 1; }
+          python3 tools/mkindex.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
