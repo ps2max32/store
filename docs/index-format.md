@@ -1,8 +1,10 @@
 # The store's index
 
-The store of mx OS, MXSTORE (an app of MXSHELL2, like Media: a tile in its Apps section), shows
+The store of mx OS, MXSTORE (an app beside MXSHELL2: a tile in its Apps section), shows
 the programs made with ps2max, installs them and keeps them up to date: the games and
 emulators, and mx OS itself (MXBOOT, MXKERNEL with its IOP modules, MXSHELL, and MXSTORE).
+Only MXBOOT and MXKERNEL live on the memory card; everything else, MXSHELL and MXSTORE too, is
+a program in `<device>/PS2MAX/<id>/` like any game.
 Everything it needs is on GitHub:
 
 - **the catalogue**: one site on GitHub Pages, made by this repository's CI: the index,
@@ -39,11 +41,12 @@ loaded again.
 
 ## index.ini
 
-Lines `key=value`, as the shell's `game.ini`; a line `[name]` starts a section. UTF-8, but
-only the characters the shell's font has (ASCII and Latin-1). Lines end with `\n`, at most
-1024 bytes; a value has no `\n` of its own: in `description` the two characters `\n` are a
-new line. Unknown keys are left alone (a newer index for an older store); an unknown
-`format` is not read at all.
+Lines `key=value`; a line `[name]` starts a section. Each program's section **is its
+`game.ini`** (the shell's, `docs/mx-os.md` "Packaging"): the shell's keys with the same names
+and meaning, and the store's keys beside them, which the shell leaves alone. UTF-8, but only
+the characters the shell's font has (ASCII and Latin-1). Lines end with `\n`, at most 1024
+bytes; a value has no new line. Unknown keys are left alone (a newer index for an older store);
+an unknown `format` is not read at all.
 
 ```ini
 [store]
@@ -53,12 +56,11 @@ base=https://ps2max32.github.io/store/
 
 [quake1]
 title=Quake
-kind=game
-section=games
-summary=The first person shooter that started it, on GLQuake.
-description=Fight through four episodes...\nSplit screen for up to four players.
-genre=Shooter
+type=Shooter
 year=1996
+description=The first person shooter that started it, on GLQuake. Four episodes...
+order=10
+kind=game
 developer=id Software
 players=1-4
 version=1.2.0
@@ -87,12 +89,23 @@ shows them. Its keys:
 
 | Key | | |
 |---|---|---|
+The shell's keys (`apps/mxshell` `src/games.c`; together at most 640 bytes, the rest of the
+shell's 768 is for `elf=`, `args=`, `saves=`):
+
+| Key | | |
+|---|---|---|
 | `title` | required | at most 40 characters |
+| `section` | | the shell's section: `games` (default), `emulation`, `media`, `apps`; `system`: not on the shelf (MXSHELL itself) |
+| `type`, `year` | | the line under the title, in the store and on the shelf |
+| `description` | required | at most 400 characters: all of it on the store's page, its first lines on the shell's |
+| `order` | | the order on the shelf and in the store, lowest first |
+
+The store's keys:
+
+| Key | | |
+|---|---|---|
 | `kind` | required | `game`, `emulator`, `app`, `system` (mx OS itself: below) |
-| `section` | | the shell's section it goes to: `games` (default), `emulation`, `media`, `apps` |
-| `summary` | required | one line under the tile, at most 80 characters |
-| `description` | | the program's page, at most 600 characters |
-| `genre`, `year`, `developer`, `players` | | shown on its page; `players` as `1`, `1-4`, `2` |
+| `developer`, `players` | | shown on its page; `players` as `1`, `1-4`, `2` |
 | `version` | required | the release's tag without its `v`; a different one is an update |
 | `date` | required | the release's date, `YYYY-MM-DD` |
 | `url` | required | the package (below), a release asset: `https://github.com/...` |
@@ -103,15 +116,16 @@ shows them. Its keys:
 | `cover`, `hero`, `shots`, `trailer` | | pictures: a path below `base`, a space, its SHA-256; `shots` several, `,` between them |
 | `source`, `license` | | the project and its licence, shown on its page |
 
-## One description, in the store and on the shelf
+## One game.ini, in the store and on the shelf
 
-What the store shows and what the shell shows after an install come from one place, this
-repository's `catalog/`: an install writes the program's `game.ini` display keys from the index
-(`title`, `year`, `type` = `genre`, `description` = `summary`, `section`, `cover_hd=coverhd.t8`)
-and the cover (`coverhd.t8`) over what the package has. The package's `game.ini` keeps the
-keys that belong to the program: `elf`, `args`, `saves`. A program changes its look in the
-catalogue, not in its package; `apps/mxshell/package-games.sh` (games put on a stick by hand)
-takes the same from the catalogue.
+What the store shows and what the shell shows after an install are one file: the catalogue's
+`catalog/<id>/game.ini`, which is the index's section. An install writes the program's
+`game.ini` as that section (without `url`, `size`, `sha256` and the pictures' lines, with
+`version`, and `cover_hd=coverhd.t8`) followed by the keys of the package's own `game.ini` that
+belong to the program: `elf`, `args`, `saves`; and the cover (`coverhd.t8`) over the package's.
+A program changes its look in the catalogue, not in its package; the shell may show any of the
+store's keys too (`developer`, `players`, `version`). `apps/mxshell/package-games.sh` (games put
+on a stick by hand) takes the same file from the catalogue.
 
 ## The package
 
@@ -136,13 +150,16 @@ never touched; a file of an older version that the new one no longer has is remo
 ## mx OS itself (`kind=system`)
 
 Four entries: `mxboot` (MXBOOT), `mxos` (MXKERNEL, its IOP modules and the host link's
-service), `mxshell` (MXSHELL), `mxstore` (MXSTORE). Their packages are zips of files at their
-places on the memory card in slot 1 (`MXOS/MXKERNEL.ELF`, `MXOS/mxsock.irx`, `MXBOOT/MXBOOT.ELF`,
-`PS2MAX/mxstore/MXSTORE.ELF`); the store writes only there, only `mc0:`. More keys:
+service), `mxshell` (MXSHELL), `mxstore` (MXSTORE). `mxshell` and `mxstore` are programs as any
+other: a package of `<id>/`, installed to `<device>/PS2MAX/mxshell/` (`section=system`, so not on
+the shelf; the kernel starts it as the shell) and `<device>/PS2MAX/mxstore/` (`section=apps`, a
+tile). `mxboot` and `mxos` start the console and stay on the memory card in slot 1: their
+packages are zips of files at their places there (`MXOS/MXKERNEL.ELF`, `MXOS/mxsock.irx`,
+`MXBOOT/MXBOOT.ELF`), and the store writes those only there, only `mc0:`. More keys:
 
 | Key | | |
 |---|---|---|
-| `update` | required | how it is put in place, below: `file`, `kernel` or `boot` |
+| `update` | `mxboot`, `mxos` | how it is put in place on the card, below: `kernel` or `boot` |
 | `kernel` | | the kernel version it needs; `mxos` gives the version it brings as `provides=` |
 | `provides` | `mxos` | the kernel version of this package |
 
@@ -150,9 +167,10 @@ They are shown in the store's own System row and in Updates, not on the shelf. A
 several goes in this order: `mxos`, `mxshell`, `mxstore`, `mxboot`; an entry whose `kernel=` the
 running kernel does not meet waits for `mxos`.
 
-- **`file`** (MXSHELL, MXSTORE): each file is written as `<name>.NEW` and read back, then the
-  old one is moved to `MXOS/BACKUP/` and the new one renamed into place. MXSTORE updating
-  itself does this too: the new one runs from its next start.
+- **without `update`** (MXSHELL, MXSTORE): as any program (below "The package"). The running
+  shell and store are in memory, not read from their files, so they are replaced in place;
+  the new one runs from its next start (the shell: after the store asks for a restart of the
+  shell). Which shell the kernel starts: `docs/mx-os.md`, "The shell".
 - **`kernel`** (MXKERNEL and its modules, which belong together): the files go to `MXOS/NEW/`;
   mxboot's one-shot (`BOOTONCE.CFG`) starts `MXOS/NEW/MXKERNEL.ELF` at the next boot, which the
   store asks for ("restart to finish": the user resets). If that kernel comes up, the store
@@ -160,8 +178,8 @@ running kernel does not meet waits for `mxos`.
   not, the next reset boots the old kernel again and the store says the update failed. This
   needs the kernel to say where it was started from (`mx_kernel_path`, an mx OS change still
   to be made).
-- **`boot`** (MXBOOT): only phase 2, `MXBOOT/MXBOOT.ELF`, as `file`, its old copy in
-  `MXBOOT/BACKUP/`. Phase 1 (the system update KELF, bound to the card) stays the installer's
+- **`boot`** (MXBOOT): only phase 2, `MXBOOT/MXBOOT.ELF`: written as `MXBOOT.NEW` and read
+  back, the old one moved to `MXBOOT/BACKUP/`, the new one renamed into place. Phase 1 (the system update KELF, bound to the card) stays the installer's
   (`mxboot-install`): a card whose phase 1 is wrong boots nothing, so no store writes it.
 
 ## Trust
@@ -175,9 +193,7 @@ too (the index is made again, by the CI, when a program has a new release).
 ## This repository
 
 ```
-catalog/<id>.ini      what is written by hand: title, kind, section, summary, description,
-                      genre, year, developer, players, needs, needs_text, license, update
-                      (system), order (the shelf's order), and repo=ps2max32/quake1,
+catalog/<id>/game.ini what is written by hand: the keys above, and repo=ps2max32/quake1,
                       asset=*.zip (which release asset; a repo without a release is left out)
 catalog/<id>/         the pictures as made: cover.*, hero.*, shot*.*, trailer.* (any size, PNG,
                       JPEG or a video); the CI cuts and converts them
@@ -188,7 +204,7 @@ tools/mkart.py        a cover and a wide picture for a program without its own (
 .github/workflows/    mkindex.py on a push, every day and by hand; site/ to GitHub Pages
 ```
 
-A program joins the store with a `catalog/<id>.ini`, its pictures, and a release whose
+A program joins the store with a `catalog/<id>/game.ini`, its pictures, and a release whose
 asset is the package above. `mxos`'s release tags are its kernel version (`v46`): that is the
 `provides=` of its entry. The private key is a secret of this repository (`STORE_KEY`, PEM);
 its public half is in the store app.

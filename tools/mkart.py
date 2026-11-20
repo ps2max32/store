@@ -4,11 +4,11 @@ MXSHELL2's design (Penumbra: ink, half-shadow, one warm light).
 
   mkart.py [--catalog DIR] [--fonts DIR] [id ...]
 
-For each catalog/<id>.ini (or the ids given) without a cover.png of its own:
+For each catalog/<id>/game.ini (or the ids given) without a cover.png of its own:
 catalog/<id>/cover.png (512 x 722, twice the shelf's 256 x 361) and hero.png
 (1280 x 720). The ground is the shell's colour for a tile without a cover
 (apps/mxshell src/games.c, title_colour), so the two look alike; the motif
-follows `kind` and `genre`, its details are seeded by the id, so a run makes
+follows `kind` and `type`, its details are seeded by the id, so a run makes
 the same pictures again. Art of your own: put a cover.png (and hero.png) in
 catalog/<id>/ and this leaves it alone (--force makes it anyway).
 """
@@ -175,7 +175,7 @@ def compose(w, h, c, ident, fonts, text):
     tone = title_colour(c["title"])
     rnd = random.Random(ident)
     im = ground(w, h, tone)
-    lines, at = motif(w, h, c.get("kind", "game"), c.get("genre", ""), rnd)
+    lines, at = motif(w, h, c.get("kind", "game"), c.get("type", ""), rnd)
     im.paste(Image.new("RGB", (w, h), WHITE), (0, 0), lines.point(lambda v: v * 0.55))
     im.paste(Image.new("RGB", (w, h), LAMP), (0, 0), light((w, h), at, w * 0.55, 0.55))
     # the lamp itself: a small bright point
@@ -203,7 +203,7 @@ def compose(w, h, c, ident, fonts, text):
         y += lh
     small = ImageFont.truetype(mono, round(17 * s))
     kind = {"game": "GAME", "emulator": "EMULATOR", "app": "APP", "system": "SYSTEM"}.get(c.get("kind", "game"), "")
-    facts = " · ".join(x for x in (c.get("genre", "").upper(), c.get("year", "")) if x)
+    facts = " · ".join(x for x in (c.get("type", "").upper(), c.get("year", "")) if x)
     d.text((pad, h - pad - round(12 * s)), facts, font=small, fill=mix(WHITE, INK, 0.35))
     d.text((pad, pad), kind, font=small, fill=mix(WHITE, INK, 0.4))
     tag = ImageFont.truetype(mono, round(14 * s))
@@ -222,9 +222,9 @@ def main():
     ap.add_argument("--force", action="store_true")
     ap.add_argument("ids", nargs="*")
     a = ap.parse_args()
-    ids = a.ids or sorted(n[:-4] for n in os.listdir(a.catalog) if n.endswith(".ini"))
+    ids = a.ids or sorted(n for n in os.listdir(a.catalog) if os.path.exists(os.path.join(a.catalog, n, "game.ini")))
     for ident in ids:
-        c = read_ini(os.path.join(a.catalog, f"{ident}.ini"))
+        c = read_ini(os.path.join(a.catalog, ident, "game.ini"))
         out = os.path.join(a.catalog, ident)
         os.makedirs(out, exist_ok=True)
         for name, size, text in (("cover", (512, 722), True), ("hero", (1280, 720), False)):

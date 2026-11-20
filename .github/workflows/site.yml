@@ -35,7 +35,7 @@ jobs:
         run: |
           test -n "$STORE_KEY" || { echo "no STORE_KEY secret"; exit 1; }
           python3 tools/mkindex.py
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: site
       - id: deploy

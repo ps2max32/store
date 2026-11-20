@@ -3,7 +3,7 @@
 
   mkindex.py [--catalog DIR] [--out DIR] [--key PEM] [--base URL]
 
-For each catalog/<id>.ini (in the order of its `order=`, then by id): the newest
+For each catalog/<id>/game.ini (in the order of its `order=`, then by id): the newest
 release of its `repo=` (GitHub's API; GITHUB_TOKEN if set) and the asset that
 matches `asset=`, or the package at `url=` when that is given. The package is
 downloaded for its size and SHA-256. The pictures in catalog/<id>/ are cut and
@@ -33,11 +33,15 @@ WIDE = (640, 360)
 MAX_SHOTS = 6
 ID = re.compile(r"^[a-z0-9-]{1,31}$")
 KINDS = ("game", "emulator", "app", "system")
-SECTIONS = ("games", "emulation", "media", "apps")
-# copied from catalog/<id>.ini into the index as they are
-KEYS = ("title", "kind", "section", "summary", "description", "genre", "year", "developer",
-        "players", "kernel", "needs", "needs_text", "license", "update")
-UPDATES = ("file", "kernel", "boot")
+SECTIONS = ("games", "emulation", "media", "apps", "system")
+# the shell's own keys (apps/mxshell src/games.c): an install writes these as the game.ini
+SHELL_KEYS = ("title", "section", "type", "year", "description", "order")
+# the store's; in the game.ini too, where the shell leaves them alone
+KEYS = SHELL_KEYS + ("kind", "developer", "players", "kernel", "needs", "needs_text", "license",
+                     "update")
+UPDATES = ("kernel", "boot")
+# what the shell reads of a game.ini (its buffer, 768 bytes) less elf=, args=, saves=
+SHELL_INI = 640
 
 
 def fail(msg):
@@ -187,13 +191,13 @@ def page(entries, base):
     for e in entries:
         shots = "".join(f'<img src="{html.escape(s.split()[0])}" alt="">'
                         for s in e.get("shots", "").split(",") if s)
-        facts = " · ".join(html.escape(e[k]) for k in ("genre", "year", "developer") if e.get(k))
-        desc = html.escape(e.get("description", "")).replace("\\n", "<br>")
+        facts = " · ".join(html.escape(e[k]) for k in ("type", "year", "developer") if e.get(k))
+        desc = html.escape(e.get("description", ""))
         cover = (f'<img class="cover" src="{html.escape(e["cover"].split()[0].replace(".t8", ".jpg"))}" alt="">'
                  if e.get("cover") else '<div class="cover"></div>')
         source = (f' · <a href="{html.escape(e["source"])}">source</a>' if e.get("source") else "")
         rows.append(f"""<article>{cover}<div><h2>{html.escape(e['title'])}</h2>
-<p class="facts">{facts}</p><p>{html.escape(e['summary'])}</p><p>{desc}</p>
+<p class="facts">{facts}</p><p>{desc}</p>
 <p class="facts">version {html.escape(e['version'])}, {html.escape(e['date'])} ·
 <a href="{html.escape(e['url'])}">download</a>{source}</p>
 <div class="shots">{shots}</div></div></article>""")
@@ -224,12 +228,12 @@ def main():
     a = ap.parse_args()
 
     found = []
-    for name in sorted(os.listdir(a.catalog)):
-        if name.endswith(".ini"):
-            ident = name[:-4]
+    for ident in sorted(os.listdir(a.catalog)):
+        ini = os.path.join(a.catalog, ident, "game.ini")
+        if os.path.exists(ini):
             if not ID.match(ident):
-                fail(f"{name}: an id is a-z, 0-9 and -, at most 31")
-            found.append((ident, read_ini(os.path.join(a.catalog, name))))
+                fail(f"{ident}: an id is a-z, 0-9 and -, at most 31")
+            found.append((ident, read_ini(ini)))
     found.sort(key=lambda x: (int(x[1].get("order", 50)), x[0]))
 
     if os.path.isdir(a.out):
@@ -241,15 +245,18 @@ def main():
              f"base={a.base}", ""]
     for ident, c in found:
         e = {k: latin1(c[k], f"{ident}.{k}") for k in KEYS if c.get(k)}
-        for k in ("title", "kind", "summary"):
+        for k in ("title", "kind", "description"):
             if k not in e:
                 fail(f"{ident}: no {k}=")
         if e["kind"] not in KINDS or e.get("section", "games") not in SECTIONS:
             fail(f"{ident}: kind= or section= unknown")
-        if (e["kind"] == "system") != (e.get("update") in UPDATES):
-            fail(f"{ident}: update= (file, kernel, boot) is for kind=system, and needed there")
-        if len(e["title"]) > 40 or len(e["summary"]) > 80 or len(e.get("description", "")) > 600:
-            fail(f"{ident}: title (40), summary (80) or description (600) too long")
+        if e.get("update") and (e["kind"] != "system" or e["update"] not in UPDATES):
+            fail(f"{ident}: update= (kernel, boot) is for kind=system, on the memory card")
+        if len(e["title"]) > 40 or len(e["description"]) > 400:
+            fail(f"{ident}: title (40) or description (400) too long")
+        shell = sum(len(f"{k}={e[k]}\n") for k in SHELL_KEYS if e.get(k)) + len("cover_hd=coverhd.t8\n")
+        if shell > SHELL_INI:
+            fail(f"{ident}: the shell's keys are {shell} bytes, over {SHELL_INI}")
         if c.get("url"):
             rel = {"url": c["url"], "version": c.get("version", "0"),
                    "date": c.get("date", datetime.date.today().isoformat())}
@@ -288,8 +295,7 @@ def main():
                 break
 
         lines.append(f"[{ident}]")
-        order = ("title", "kind", "section", "summary", "description", "genre", "year", "developer",
-                 "players", "update", "version", "provides", "date", "url", "size", "sha256", "installed",
+        order = SHELL_KEYS + ("kind", "developer", "players", "update", "version", "provides", "date", "url", "size", "sha256", "installed",
                  "kernel", "needs",
                  "needs_text", "cover", "hero", "shots", "trailer", "source", "license")
         for k in order:
