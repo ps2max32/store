@@ -141,12 +141,15 @@ quake1/
   <files of its own: configs, shaders, never game data>
 ```
 
-The store unpacks it to `<device>/PS2MAX/<id>/`, where the shell finds it as any game. It
-first checks size and SHA-256 against the index, then writes into `PS2MAX/.store/new/<id>/`
-and moves the files into place only when all are there; what it wrote is listed in
-`PS2MAX/<id>/.store` (the version and the files), for the next update and for removing it.
-Files that are not in the package (the game data, saves, configs the program wrote) are
-never touched; a file of an older version that the new one no longer has is removed.
+The store loads it to `<device>/PS2MAX/.store/<id>.zip`, checks size and SHA-256 against the
+index, then unpacks it to `<device>/PS2MAX/<id>/`, where the shell finds it as any game (each
+file's CRC checked; names outside `<id>/` left out). mx OS has no rename yet, so the files are
+written in place: `PS2MAX/<id>/.store` (the version, `state=`, the files) says `state=partial`
+until all are there, and the store offers to repair such an install. That list is also what
+the next update and Remove go by: files that are not in the package (the game data, saves,
+configs the program wrote) are never touched; a file of an older version that the new one no
+longer has is removed. A copy put there by hand (a `game.ini` without `.store`) is shown as
+such and replaced only after the user confirms.
 
 ## mx OS itself (`kind=system`)
 
@@ -164,7 +167,9 @@ packages are zips of files at their places there (`MXOS/MXKERNEL.ELF`, `MXOS/mxs
 | `kernel` | | the kernel version it needs; `mxos` gives the version it brings as `provides=` |
 | `provides` | `mxos` | the kernel version of this package |
 
-They are shown in the store's own System row and in Updates, not on the shelf. An update of
+They are shown in the store's own System row and in Updates, not on the shelf. The store
+installs `mxshell` and `mxstore` now; `mxboot` and `mxos` need mx OS changes first (a rename
+on the memory card, and `mx_kernel_path`), and are installed from the PC until then. An update of
 several goes in this order: `mxos`, `mxshell`, `mxstore`, `mxboot`; an entry whose `kernel=` the
 running kernel does not meet waits for `mxos`.
 
