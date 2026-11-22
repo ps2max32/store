@@ -25,6 +25,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+import zipfile
 
 from PIL import Image
 
@@ -181,9 +182,25 @@ def sign(data, key):
     return der_to_raw(der)
 
 
-def package(url):
+def package(url, ident):
+    """The package's bytes and SHA-256, and data= of its <id>/game.ini: the
+    game's data directory, which the game names itself (docs/index-format.md)"""
     data = get(url)
-    return len(data), hashlib.sha256(data).hexdigest()
+    d = None
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            ini = z.read(f"{ident}/game.ini").decode("latin-1")
+    except (KeyError, zipfile.BadZipFile):
+        ini = ""
+    for line in ini.splitlines():
+        if line.startswith("data="):
+            d = line[5:].strip()
+    if d is not None:
+        parts = d.split("/")
+        if (not d or d.startswith("/") or ":" in d or "\\" in d
+                or ".." in parts[1:] or (parts[0] == ".." and len(parts) < 2) or "" in parts):
+            fail(f"{ident}: data={d}: a directory below the game's, or ../<dir>/... in PS2MAX")
+    return len(data), hashlib.sha256(data).hexdigest(), d
 
 
 def page(entries, base):
@@ -270,7 +287,10 @@ def main():
         e.update(rel)
         if e.get("update") == "kernel":
             e["provides"] = rel["version"]  # mxos's tags are its kernel version: v46
-        e["size"], e["sha256"] = (str(v) for v in package(rel["url"]))
+        size, sha, data = package(rel["url"], ident)
+        e["size"], e["sha256"] = str(size), sha
+        if data:
+            e["data"] = data
         if c.get("installed"):
             e["installed"] = c["installed"]
         if c.get("repo"):
@@ -296,7 +316,7 @@ def main():
 
         lines.append(f"[{ident}]")
         order = SHELL_KEYS + ("kind", "developer", "players", "update", "version", "provides", "date", "url", "size", "sha256", "installed",
-                 "kernel", "needs",
+                 "kernel", "data", "needs",
                  "needs_text", "cover", "hero", "shots", "trailer", "source", "license")
         for k in order:
             if e.get(k):

@@ -70,6 +70,7 @@ size=1843210
 sha256=9f2c...e1
 installed=4718592
 kernel=46
+data=../DATA/quake
 needs=id1/pak0.pak
 needs_text=The PAK files of Quake (shareware or full) in id1/.
 cover=img/quake1/cover.t8 1b0e...44
@@ -112,7 +113,8 @@ The store's keys:
 | `size`, `sha256` | required | the package's bytes and SHA-256 (hex); the store keeps nothing that differs |
 | `installed` | | bytes on the device after unpacking: the store checks the free space |
 | `kernel` | | the lowest kernel version it runs on; an older kernel shows it greyed out, "needs a newer system" |
-| `needs`, `needs_text` | | files the user brings: game data the store cannot give (`,` between them, relative to `PS2MAX/<id>/`). Missing ones are shown with `needs_text`; installing is allowed, starting waits until they are there |
+| `data` | | the game's data directory, from `data=` of its package's `game.ini` (mkindex takes it from there: the game names it): below `PS2MAX/<id>/`, or `../DATA/<name>`, which games share |
+| `needs`, `needs_text` | | files the user brings: game data the store cannot give (`,` between them, relative to the data directory, `data=`; without it `PS2MAX/<id>/`). Missing ones are shown with `needs_text`; installing is allowed, starting waits until they are there |
 | `cover`, `hero`, `shots`, `trailer` | | pictures: a path below `base`, a space, its SHA-256; `shots` several, `,` between them |
 | `source`, `license` | | the project and its licence, shown on its page |
 
@@ -121,7 +123,7 @@ The store's keys:
 What the store shows and what the shell shows after an install are one file: the catalogue's
 `catalog/<id>/game.ini`, which is the index's section. An install writes the program's
 `game.ini` as that section: first its shell keys and `cover_hd=coverhd.t8`, then the keys of
-the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`), then the
+the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`, `data`), then the
 store's keys (with `version`; without `url`, `size`, `sha256` and the pictures' lines); and the
 cover (`coverhd.t8`) over the package's. The shell reads the first 2 KiB of a `game.ini`.
 A program changes its look in the catalogue, not in its package; the shell may show any of the
@@ -140,6 +142,12 @@ quake1/
   coverhd.t8       256 x 361, apps/mxshell/tools/mk-cover.py's format
   <files of its own: configs, shaders, never game data>
 ```
+
+The game data is never in a package, so an update does not bring it again. The game says where
+it reads it with `data=` in its `game.ini` (mx OS's `docs/mx-os.md`, Packaging), e.g.
+`data=../DATA/quake` and `args=-basedir {data}`: `<device>/PS2MAX/DATA/quake/`, which Quake and
+QuakeSpasm share. The store never writes or removes there for a program; the user puts the
+data there (`needs_text` says what), and what the game writes goes next to its ELF.
 
 The store loads it to `<device>/PS2MAX/.store/<id>.zip`, checks size and SHA-256 against the
 index, then unpacks it to `<device>/PS2MAX/<id>/`, where the shell finds it as any game (each
