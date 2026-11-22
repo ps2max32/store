@@ -96,7 +96,7 @@ The shell's keys (`apps/mxshell` `src/games.c`; together at most 640 bytes, so t
 | Key | | |
 |---|---|---|
 | `title` | required | at most 40 characters |
-| `section` | | the shell's section: `games` (default), `emulation`, `media`, `apps`; `system`: not on the shelf (MXSHELL itself) |
+| `section` | | the shell's section: `games` (default), `emulation` (shown in Apps until the shell has a section for it), `apps`; `system`: not on the shelf (MXSHELL itself) |
 | `type`, `year` | | the line under the title, in the store and on the shelf |
 | `description` | required | at most 400 characters: all of it on the store's page, its first lines on the shell's |
 | `order` | | the order on the shelf and in the store, lowest first |
@@ -123,7 +123,7 @@ The store's keys:
 What the store shows and what the shell shows after an install are one file: the catalogue's
 `catalog/<id>/game.ini`, which is the index's section. An install writes the program's
 `game.ini` as that section: first its shell keys and `cover_hd=coverhd.t8`, then the keys of
-the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`, `data`, `setup`, `setup_args`), then the
+the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`, `data`, `setup`, `setup_args`, `versions`), then the
 store's keys (with `version`; without `url`, `size`, `sha256` and the pictures' lines); and the
 cover (`coverhd.t8`) over the package's. The shell reads the first 2 KiB of a `game.ini`.
 A program changes its look in the catalogue, not in its package; the shell may show any of the
@@ -150,6 +150,15 @@ QuakeSpasm share. The store never writes or removes there for a program; the use
 data there (`needs_text` says what), or the store's data entry does (below), and what the game
 writes goes next to its ELF.
 
+A game whose data comes in more than one version names them with `versions=` in its package's
+`game.ini` (docs/mx-os.md, Packaging): `<name>:<file>:<word>`, `,` between them, the file
+relative to the data directory, e.g. `versions=Full game:baseq3/pak0.pk3:baseq3,Demo:demoq3/pak0.pk3:demoq3`.
+mkindex copies it into the index. The game's page shows "Its data", one line a version: there
+on the device, in the store (the data entry whose first `needs=` file is the version's file: up
+and down choose the line, cross gets it), or the user's own copy and the folder its files go to.
+Without `versions=` each data entry of the game is a version. The shell asks which version to
+start when more than one is there.
+
 ## Game data (`kind=data`)
 
 Data a game needs and that its makers let anyone give out for free: the Quake shareware
@@ -157,8 +166,9 @@ episode, the Quake II and Quake III Arena demos. Their licences allow giving out
 **original archive, unchanged, with its licence**, not files taken out of it or changed. So
 the entry's file is that archive, as its makers gave it out (a release asset of
 `ps2max32/gamedata`), and the PS2 unpacks the files the game needs from it. A data entry is not
-on a shelf; the page of each game its `for=` names shows it: when the game is installed and its
-`needs=` are not there, the lit button is "Get its data".
+on a shelf; the page of every game with the same data directory (`data=`; or whose id its `for=`
+names) shows it as a version of its data (above): Quake 3 GL and Quake 3 PS2, which share
+`../DATA/quake3`, show the same.
 
 ```ini
 [quake-shareware]
@@ -177,7 +187,7 @@ license=id Software's shareware licence (slicnse.txt)
 
 | Key | | |
 |---|---|---|
-| `for` | required | the games it is for, `,` between their ids |
+| `for` | | more games it is for, `,` between their ids (the games with its `data=` directory are without it) |
 | `data` | required | where it goes, as a game's `data=`: `../DATA/quake` is `PS2MAX/DATA/quake/` |
 | `take` | required | the files: `<path in the archive> <path in the data directory>`, `,` between them; a path ending in `/` takes all below it. A path goes on into an archive inside the archive: `resource.1/ID1/PAK0.PAK` is `ID1\PAK0.PAK` of the LHA archive `resource.1` in the zip. Names compare without case, `\` as `/` |
 | `needs` | required | the files that say it is there (the user's own copy counts too) |

@@ -34,7 +34,7 @@ WIDE = (640, 360)
 MAX_SHOTS = 6
 ID = re.compile(r"^[a-z0-9-]{1,31}$")
 KINDS = ("game", "emulator", "app", "system", "data")
-SECTIONS = ("games", "emulation", "media", "apps", "system")
+SECTIONS = ("games", "emulation", "apps", "system")
 # the shell's own keys (apps/mxshell src/games.c): an install writes these as the game.ini
 SHELL_KEYS = ("title", "section", "type", "year", "description", "order")
 # the store's; in the game.ini too, where the shell leaves them alone
@@ -187,10 +187,11 @@ def sign(data, key):
 
 
 def package(url, ident):
-    """The package's bytes and SHA-256, and data= of its <id>/game.ini: the
-    game's data directory, which the game names itself (docs/index-format.md)"""
+    """The package's bytes and SHA-256, and data= and versions= of its
+    <id>/game.ini: the game's data directory and the versions of its data,
+    which the game names itself (docs/index-format.md)"""
     data = get(url)
-    d = None
+    d = v = None
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             ini = z.read(f"{ident}/game.ini").decode("latin-1")
@@ -199,9 +200,15 @@ def package(url, ident):
     for line in ini.splitlines():
         if line.startswith("data="):
             d = line[5:].strip()
+        if line.startswith("versions="):
+            v = line[9:].strip()
     if d is not None:
         data_dir(ident, d)
-    return len(data), hashlib.sha256(data).hexdigest(), d
+    if v is not None:
+        for item in v.split(","):
+            if len(item.split(":")) != 3 or not all(item.split(":")):
+                fail(f"{ident}: versions= item '{item}': <name>:<file in the data directory>:<word>")
+    return len(data), hashlib.sha256(data).hexdigest(), d, v
 
 
 def data_dir(ident, d):
@@ -312,7 +319,7 @@ def main():
         if e["kind"] == "data":
             # a game's data: the original archive, unpacked on the PS2 (take=);
             # where it goes is the catalogue's data=, as a game's package says it
-            for k in ("for", "take", "data", "needs"):
+            for k in ("take", "data", "needs"):
                 if not c.get(k):
                     fail(f"{ident}: kind=data needs {k}=")
             data_dir(ident, c["data"])
@@ -322,9 +329,11 @@ def main():
             size, sha = known if known else (lambda b: (len(b), hashlib.sha256(b).hexdigest()))(get(rel["url"]))
         else:
             rel.pop("known", None)
-            size, sha, data = package(rel["url"], ident)
+            size, sha, data, versions = package(rel["url"], ident)
             if data:
                 e["data"] = data
+            if versions:
+                e["versions"] = versions
         e["size"], e["sha256"] = str(size), sha
         if c.get("installed"):
             e["installed"] = c["installed"]
@@ -351,7 +360,7 @@ def main():
 
         lines.append(f"[{ident}]")
         order = SHELL_KEYS + ("kind", "developer", "players", "update", "version", "provides", "date", "url", "size", "sha256", "installed",
-                 "kernel", "for", "data", "take", "needs",
+                 "kernel", "for", "data", "versions", "take", "needs",
                  "needs_text", "cover", "hero", "shots", "trailer", "source", "license")
         for k in order:
             if e.get(k):
