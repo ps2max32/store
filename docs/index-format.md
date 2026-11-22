@@ -123,7 +123,7 @@ The store's keys:
 What the store shows and what the shell shows after an install are one file: the catalogue's
 `catalog/<id>/game.ini`, which is the index's section. An install writes the program's
 `game.ini` as that section: first its shell keys and `cover_hd=coverhd.t8`, then the keys of
-the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`, `data`), then the
+the package's own `game.ini` that belong to the program (`elf`, `args`, `saves`, `data`, `setup`, `setup_args`), then the
 store's keys (with `version`; without `url`, `size`, `sha256` and the pictures' lines); and the
 cover (`coverhd.t8`) over the package's. The shell reads the first 2 KiB of a `game.ini`.
 A program changes its look in the catalogue, not in its package; the shell may show any of the
