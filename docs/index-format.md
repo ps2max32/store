@@ -105,7 +105,7 @@ The store's keys:
 
 | Key | | |
 |---|---|---|
-| `kind` | required | `game`, `emulator`, `app`, `system` (mx OS itself: below) |
+| `kind` | required | `game`, `emulator`, `app`, `system` (mx OS itself: below), `data` (a game's data: below) |
 | `developer`, `players` | | shown on its page; `players` as `1`, `1-4`, `2` |
 | `version` | required | the release's tag without its `v`; a different one is an update |
 | `date` | required | the release's date, `YYYY-MM-DD` |
@@ -114,7 +114,7 @@ The store's keys:
 | `installed` | | bytes on the device after unpacking: the store checks the free space |
 | `kernel` | | the lowest kernel version it runs on; an older kernel shows it greyed out, "needs a newer system" |
 | `data` | | the game's data directory, from `data=` of its package's `game.ini` (mkindex takes it from there: the game names it): below `PS2MAX/<id>/`, or `../DATA/<name>`, which games share |
-| `needs`, `needs_text` | | files the user brings: game data the store cannot give (`,` between them, relative to the data directory, `data=`; without it `PS2MAX/<id>/`). Missing ones are shown with `needs_text`; installing is allowed, starting waits until they are there |
+| `needs`, `needs_text` | | the game data it needs (`,` between them, `\|` between files that do instead of each other: `baseq3/pak0.pk3\|demoq3/pak0.pk3`; relative to the data directory, `data=`; without it `PS2MAX/<id>/`). Missing ones are shown with `needs_text`, and with the store's data entry for the game when there is one; installing is allowed, starting waits until they are there |
 | `cover`, `hero`, `shots`, `trailer` | | pictures: a path below `base`, a space, its SHA-256; `shots` several, `,` between them |
 | `source`, `license` | | the project and its licence, shown on its page |
 
@@ -147,7 +147,50 @@ The game data is never in a package, so an update does not bring it again. The g
 it reads it with `data=` in its `game.ini` (mx OS's `docs/mx-os.md`, Packaging), e.g.
 `data=../DATA/quake` and `args=-basedir {data}`: `<device>/PS2MAX/DATA/quake/`, which Quake and
 QuakeSpasm share. The store never writes or removes there for a program; the user puts the
-data there (`needs_text` says what), and what the game writes goes next to its ELF.
+data there (`needs_text` says what), or the store's data entry does (below), and what the game
+writes goes next to its ELF.
+
+## Game data (`kind=data`)
+
+Data a game needs and that its makers let anyone give out for free: the Quake shareware
+episode, the Quake II and Quake III Arena demos. Their licences allow giving out the
+**original archive, unchanged, with its licence**, not files taken out of it or changed. So
+the entry's file is that archive, as its makers gave it out (a release asset of
+`ps2max32/gamedata`), and the PS2 unpacks the files the game needs from it. A data entry is not
+on a shelf; the page of each game its `for=` names shows it: when the game is installed and its
+`needs=` are not there, the lit button is "Get its data".
+
+```ini
+[quake-shareware]
+title=Quake shareware episode
+kind=data
+for=quake1,quakespasm
+data=../DATA/quake
+take=resource.1/ID1/PAK0.PAK id1/pak0.pak,resource.1/SLICNSE.TXT id1/slicnse.txt
+needs=id1/pak0.pak
+url=https://github.com/ps2max32/gamedata/releases/download/v1/quake106.zip
+size=9094045
+sha256=ec6c...39
+installed=18708582
+license=id Software's shareware licence (slicnse.txt)
+```
+
+| Key | | |
+|---|---|---|
+| `for` | required | the games it is for, `,` between their ids |
+| `data` | required | where it goes, as a game's `data=`: `../DATA/quake` is `PS2MAX/DATA/quake/` |
+| `take` | required | the files: `<path in the archive> <path in the data directory>`, `,` between them; a path ending in `/` takes all below it. A path goes on into an archive inside the archive: `resource.1/ID1/PAK0.PAK` is `ID1\PAK0.PAK` of the LHA archive `resource.1` in the zip. Names compare without case, `\` as `/` |
+| `needs` | required | the files that say it is there (the user's own copy counts too) |
+| `url`, `size`, `sha256`, `installed` | | as a program's; `installed` is what the taken files take |
+
+The archives the store reads: zip (stored or deflated; also with a program before it, a
+self-extracting `.exe`), LHA (`-lh0-`, `-lh5-`, header levels 0 and 1; also with a DOS program
+before it), tar, gzip (`.tar.gz`), and makeself (a shell script with a `.tar.gz` behind it, as
+Loki's Linux installers). The archive goes to `PS2MAX/.store/<id>.dat`, is checked against
+`size` and `sha256`, unpacked, and removed. A file that is already there is kept (it is the
+user's, maybe a full version's); a file left half written by an error or Stop is removed.
+Nothing is recorded: what is in the data directory is the user's from then on, and the store
+never removes it.
 
 The store loads it to `<device>/PS2MAX/.store/<id>.zip`, checks size and SHA-256 against the
 index, then unpacks it to `<device>/PS2MAX/<id>/`, where the shell finds it as any game (each
@@ -212,7 +255,8 @@ catalog/<id>/game.ini what is written by hand: the keys above, and repo=ps2max32
 catalog/<id>/         the pictures as made: cover.*, hero.*, shot*.*, trailer.* (any size, PNG,
                       JPEG or a video); the CI cuts and converts them
 tools/mkindex.py      the newest release of each repo (GitHub's API), its asset's size and
-                      SHA-256, the pictures, index.ini, index.sig, index.html into site/
+                      SHA-256 (from GitHub's digest for a data entry's archive), the
+                      pictures, index.ini, index.sig, index.html into site/
 tools/mkart.py        a cover and a wide picture for a program without its own (Penumbra,
                       the shell's ground colours, fonts/)
 .github/workflows/    mkindex.py on a push, every day and by hand; site/ to GitHub Pages

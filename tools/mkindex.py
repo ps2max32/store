@@ -33,13 +33,13 @@ COVER = (256, 361)
 WIDE = (640, 360)
 MAX_SHOTS = 6
 ID = re.compile(r"^[a-z0-9-]{1,31}$")
-KINDS = ("game", "emulator", "app", "system")
+KINDS = ("game", "emulator", "app", "system", "data")
 SECTIONS = ("games", "emulation", "media", "apps", "system")
 # the shell's own keys (apps/mxshell src/games.c): an install writes these as the game.ini
 SHELL_KEYS = ("title", "section", "type", "year", "description", "order")
 # the store's; in the game.ini too, where the shell leaves them alone
 KEYS = SHELL_KEYS + ("kind", "developer", "players", "kernel", "needs", "needs_text", "license",
-                     "update")
+                     "update", "for", "take")
 UPDATES = ("kernel", "boot")
 # what the shell reads of a game.ini (its buffer, 768 bytes) less elf=, args=, saves=
 SHELL_INI = 640
@@ -74,7 +74,8 @@ def get(url, accept=None):
 
 
 def release(repo, pattern):
-    """its newest release's asset, or None (no release yet: not in the index)"""
+    """its newest release's asset, or None (no release yet: not in the index);
+    with its size and SHA-256 when GitHub gives them (digest)"""
     try:
         rel = json.loads(get(f"https://api.github.com/repos/{repo}/releases/latest",
                              "application/vnd.github+json"))
@@ -84,8 +85,11 @@ def release(repo, pattern):
         raise
     for a in rel.get("assets", []):
         if fnmatch.fnmatch(a["name"], pattern):
-            return {"version": rel["tag_name"].lstrip("v"), "date": rel["published_at"][:10],
-                    "url": a["browser_download_url"]}
+            r = {"version": rel["tag_name"].lstrip("v"), "date": rel["published_at"][:10],
+                 "url": a["browser_download_url"]}
+            if (a.get("digest") or "").startswith("sha256:"):
+                r["known"] = (a["size"], a["digest"][7:])
+            return r
     print(f"mkindex: {repo} {rel['tag_name']}: no asset {pattern}: left out", file=sys.stderr)
     return None
 
@@ -196,16 +200,34 @@ def package(url, ident):
         if line.startswith("data="):
             d = line[5:].strip()
     if d is not None:
-        parts = d.split("/")
-        if (not d or d.startswith("/") or ":" in d or "\\" in d
-                or ".." in parts[1:] or (parts[0] == ".." and len(parts) < 2) or "" in parts):
-            fail(f"{ident}: data={d}: a directory below the game's, or ../<dir>/... in PS2MAX")
+        data_dir(ident, d)
     return len(data), hashlib.sha256(data).hexdigest(), d
+
+
+def data_dir(ident, d):
+    parts = d.split("/")
+    if (not d or d.startswith("/") or ":" in d or "\\" in d
+            or ".." in parts[1:] or (parts[0] == ".." and len(parts) < 2) or "" in parts):
+        fail(f"{ident}: data={d}: a directory below the game's, or ../<dir>/... in PS2MAX")
+
+
+def check_take(ident, take):
+    """take=: "<path in the archive> <path in the data directory>", "," between them"""
+    for item in take.split(","):
+        parts = item.strip().split(" ")
+        if len(parts) != 2:
+            fail(f"{ident}: take= item '{item}': <path in the archive> <path in the data directory>")
+        src, dst = parts
+        if (not dst or dst.startswith("/") or ".." in dst or ":" in dst or "\\" in dst or "//" in dst
+                or src.endswith("/") != dst.endswith("/")):
+            fail(f"{ident}: take= item '{item}': a relative path, a directory for a directory")
 
 
 def page(entries, base):
     rows = []
     for e in entries:
+        if e["kind"] == "data":
+            continue  # on its game's page, on the PS2
         shots = "".join(f'<img src="{html.escape(s.split()[0])}" alt="">'
                         for s in e.get("shots", "").split(",") if s)
         facts = " · ".join(html.escape(e[k]) for k in ("type", "year", "developer") if e.get(k))
@@ -284,13 +306,26 @@ def main():
                 continue
         else:
             fail(f"{ident}: repo= and asset=, or url=")
-        e.update(rel)
+        e.update({k: v for k, v in rel.items() if k != "known"})
         if e.get("update") == "kernel":
             e["provides"] = rel["version"]  # mxos's tags are its kernel version: v46
-        size, sha, data = package(rel["url"], ident)
+        if e["kind"] == "data":
+            # a game's data: the original archive, unpacked on the PS2 (take=);
+            # where it goes is the catalogue's data=, as a game's package says it
+            for k in ("for", "take", "data", "needs"):
+                if not c.get(k):
+                    fail(f"{ident}: kind=data needs {k}=")
+            data_dir(ident, c["data"])
+            check_take(ident, c["take"])
+            e["data"] = c["data"]
+            known = rel.pop("known", None)
+            size, sha = known if known else (lambda b: (len(b), hashlib.sha256(b).hexdigest()))(get(rel["url"]))
+        else:
+            rel.pop("known", None)
+            size, sha, data = package(rel["url"], ident)
+            if data:
+                e["data"] = data
         e["size"], e["sha256"] = str(size), sha
-        if data:
-            e["data"] = data
         if c.get("installed"):
             e["installed"] = c["installed"]
         if c.get("repo"):
@@ -316,7 +351,7 @@ def main():
 
         lines.append(f"[{ident}]")
         order = SHELL_KEYS + ("kind", "developer", "players", "update", "version", "provides", "date", "url", "size", "sha256", "installed",
-                 "kernel", "data", "needs",
+                 "kernel", "for", "data", "take", "needs",
                  "needs_text", "cover", "hero", "shots", "trailer", "source", "license")
         for k in order:
             if e.get(k):
