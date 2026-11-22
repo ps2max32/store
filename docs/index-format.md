@@ -224,10 +224,12 @@ on the memory card, and `mx_kernel_path`), and are installed from the PC until t
 several goes in this order: `mxos`, `mxshell`, `mxstore`, `mxboot`; an entry whose `kernel=` the
 running kernel does not meet waits for `mxos`.
 
-- **without `update`** (MXSHELL, MXSTORE): as any program (below "The package"). The running
-  shell and store are in memory, not read from their files, so they are replaced in place;
-  the new one runs from its next start (the shell: after the store asks for a restart of the
-  shell). Which shell the kernel starts: `docs/mx-os.md`, "The shell".
+- **without `update`** (MXSHELL, MXSTORE): as any program (below "The package"), replaced in
+  place; the new one runs from its next start (the shell: after the store asks for a restart
+  of the shell). A running program's pages come from its ELF (the VM reads them from it and
+  drops clean ones to read them again), so before MXSTORE writes its own it pins all of its
+  pages (`mx_vm_pin`, up to `.bss`) until it ends. Its package is released by
+  ps2max32/mxshell (`make package`: `mxstore-ps2max.zip`, on a tag `v*`). Which shell the kernel starts: `docs/mx-os.md`, "The shell".
 - **`kernel`** (MXKERNEL and its modules, which belong together): the files go to `MXOS/NEW/`;
   mxboot's one-shot (`BOOTONCE.CFG`) starts `MXOS/NEW/MXKERNEL.ELF` at the next boot, which the
   store asks for ("restart to finish": the user resets). If that kernel comes up, the store
