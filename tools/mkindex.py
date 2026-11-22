@@ -34,7 +34,7 @@ WIDE = (640, 360)
 MAX_SHOTS = 6
 ID = re.compile(r"^[a-z0-9-]{1,31}$")
 KINDS = ("game", "emulator", "app", "system", "data")
-SECTIONS = ("games", "emulation", "apps", "system")
+SECTIONS = ("games", "emulation", "media", "apps", "system")
 # the shell's own keys (apps/mxshell src/games.c): an install writes these as the game.ini
 SHELL_KEYS = ("title", "section", "type", "year", "description", "order")
 # the store's; in the game.ini too, where the shell leaves them alone
