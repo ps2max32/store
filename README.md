@@ -10,7 +10,7 @@ page with every project). The store app itself is part of MXSHELL2
   shell's shelf show the same.
 - `tools/mkindex.py`: the site from the catalogue and the newest release of each program
   (`site/`: `index.ini`, its signature, the pictures, `index.html`).
-- `tools/mkart.py`: covers and wide pictures for programs without art of their own.
+- `tools/mkart.py`: covers for programs without art of their own.
 - `docs/index-format.md`: the format, the packages, system updates, and how the store checks
   what it loads.
 
@@ -20,7 +20,8 @@ page with every project). The store app itself is part of MXSHELL2
    package"): a zip of `<id>/` with the ELF and its `game.ini`.
 2. Add `catalog/<id>/game.ini` (an existing one shows the keys) with `repo=` and `asset=`.
 3. Pictures: `catalog/<id>/cover.png` (any size, cut to 1 : 1.41), `hero.png`, `shot1.png` ...
-   (16 : 9), `trailer.mp4`; without them `tools/mkart.py <id>` makes a cover and a wide picture.
+   (16 : 9), `trailer.mp4`; all optional but the cover, which
+   `tools/mkart.py <id>` makes when there is none.
    The games' covers are their publishers' own art (the games and their art belong to their
    owners; a cover is taken down when an owner asks); the apps' covers are ours.
 4. Push: the site is made again; also every day, for new releases.

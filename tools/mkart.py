@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Art for the catalogue, our own: a cover and a wide picture per program, in
+"""Art for the catalogue, our own: a cover per program, in
 MXSHELL2's design (Penumbra: ink, half-shadow, one warm light).
 
   mkart.py [--catalog DIR] [--fonts DIR] [id ...]
 
 For each catalog/<id>/game.ini (or the ids given) without a cover.png of its own:
-catalog/<id>/cover.png (512 x 722, twice the shelf's 256 x 361) and hero.png
-(1280 x 720). The ground is the shell's colour for a tile without a cover
+catalog/<id>/cover.png (512 x 722, twice the shelf's 256 x 361). The ground is the shell's colour for a tile without a cover
 (apps/mxshell src/games.c, title_colour), so the two look alike; the motif
 follows `kind` and `type`, its details are seeded by the id, so a run makes
-the same pictures again. Art of your own: put a cover.png (and hero.png) in
+the same pictures again. Art of your own: put a cover.png in
 catalog/<id>/ and this leaves it alone (--force makes it anyway).
 """
 import argparse
@@ -227,12 +226,11 @@ def main():
         c = read_ini(os.path.join(a.catalog, ident, "game.ini"))
         out = os.path.join(a.catalog, ident)
         os.makedirs(out, exist_ok=True)
-        for name, size, text in (("cover", (512, 722), True), ("hero", (1280, 720), False)):
-            p = os.path.join(out, f"{name}.png")
-            if os.path.exists(p) and not a.force:
-                continue
-            compose(*size, c, ident, a.fonts, text).save(p, optimize=True)
-            print(f"mkart: {p}")
+        p = os.path.join(out, "cover.png")
+        if os.path.exists(p) and not a.force:
+            continue
+        compose(512, 722, c, ident, a.fonts, True).save(p, optimize=True)
+        print(f"mkart: {p}")
 
 
 if __name__ == "__main__":
