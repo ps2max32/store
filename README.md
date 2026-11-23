@@ -21,7 +21,8 @@ page with every project). The store app itself is part of MXSHELL2
 2. Add `catalog/<id>/game.ini` (an existing one shows the keys) with `repo=` and `asset=`.
 3. Pictures: `catalog/<id>/cover.png` (any size, cut to 1 : 1.41), `hero.png`, `shot1.png` ...
    (16 : 9), `trailer.mp4`; without them `tools/mkart.py <id>` makes a cover and a wide picture.
-   Use art you made or may share: no box art or logos of others.
+   The games' covers are their publishers' own art (the games and their art belong to their
+   owners; a cover is taken down when an owner asks); the apps' covers are ours.
 4. Push: the site is made again; also every day, for new releases.
 
 `python3 tools/mkindex.py` makes the site locally (Pillow; a trailer needs ffmpeg). The
