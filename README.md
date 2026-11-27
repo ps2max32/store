@@ -10,6 +10,7 @@ page with every project). The store app itself is part of MXSHELL2
   shell's shelf show the same.
 - `tools/mkindex.py`: the site from the catalogue and the newest release of each program
   (`site/`: `index.ini`, its signature, the pictures, `index.html`).
+- `tools/tiles/mktiles.py`: the covers of our own programs, Daedalus and NJEMU, in the shell's Penumbra light.
 - `tools/mkart.py`: covers for programs without art of their own.
 - `docs/index-format.md`: the format, the packages, system updates, and how the store checks
   what it loads.
